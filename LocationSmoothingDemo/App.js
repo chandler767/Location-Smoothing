@@ -102,6 +102,10 @@ export default class App extends React.Component {
  }
  // Get location and stream to PubNub.
  callLocation(that){
+    this.pubnub.publish({
+      message: "reset",
+      channel: "reported_location"
+    });
     const { coordinate } = this.state;
     Geolocation.watchPosition(
        (position) => {
@@ -119,11 +123,14 @@ export default class App extends React.Component {
 
     // Subscribe to get smoothed location data from PN Function.
     this.pubnub.subscribe({
-        channels: ['reported_location']     
+        channels: ['reported_location_smoothed']     
     });
 
     // Update when a new location is received.
-    this.pubnub.getMessage('reported_location', (msg) => {
+    this.pubnub.getMessage('reported_location_smoothed', (msg) => {
+      if (msg.message == "reset") {
+        return // Don't do anything with reset messages.
+      }
       const { routeCoordinates, distanceTravelled } = this.state;
       const latitude = msg.message.latitude;
       const longitude = msg.message.longitude;
