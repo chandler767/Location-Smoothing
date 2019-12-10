@@ -1,5 +1,23 @@
 /**
-Location Tracking Smoothing Demo 
+
+Realtime Location Tracking and PubNub Function Smoothing Demo.
+
+This app works by:
+
+- Streaming realtime location to PubNub.
+
+- Location smoothing occurs in a PubNub function and optimized coordinate points are streamed to a new channel. 
+
+- Subscribes to realtime location and plots on a Google Map. 
+
+Use this for:
+
+ - Delivery apps
+
+ - Ride sharing apps
+
+ - Tracking apps
+
  */
 
 import React from "react";
@@ -19,13 +37,13 @@ import MapView, {
 } from "react-native-maps";
 import haversine from "haversine";
 import Geolocation from '@react-native-community/geolocation';
+import PubNubReact from 'pubnub-react';
 
-// const LATITUDE = 29.95539;
-// const LONGITUDE = 78.07513;
+// Default positon.
 const LATITUDE_DELTA = 0.009;
 const LONGITUDE_DELTA = 0.009;
-const LATITUDE = 37.78825;
-const LONGITUDE = -122.4324;
+const LATITUDE = 36.072701;
+const LONGITUDE = -79.793900;
 
 export default class App extends React.Component {
   constructor(props) {
@@ -44,12 +62,19 @@ export default class App extends React.Component {
         longitudeDelta: 0
       })
     };
+
+    // Init PubNub. Use your subscribeKey and publishKey here.
+    this.pubnub = new PubNubReact({
+        subscribeKey: 'sub-c-4e5834ce-1b8b-11ea-a8ee-866798696d74',
+        publishKey: 'pub-c-b238917c-b07e-4894-8702-f27a4108de56'
+    });
+    this.pubnub.init(this);
   }
 
   componentDidMount = () => {
     var that =this;
     const { coordinate } = this.state;
-    //Checking for the permission just after component loaded
+    //Checking for the permission.
     if(Platform.OS === 'ios'){
       this.callLocation(that);
     }else{
@@ -75,46 +100,72 @@ export default class App extends React.Component {
       requestLocationPermission();
     }    
  }
+ // Get location and stream to PubNub.
  callLocation(that){
     const { coordinate } = this.state;
-    Geolocation.getCurrentPosition(
+    Geolocation.watchPosition(
        (position) => {
-          const { routeCoordinates, distanceTravelled } = this.state;
-          const { latitude, longitude } = position.coords;
-
-          const newCoordinate = {
-            latitude,
-            longitude
-          };
-
-          if (Platform.OS === "android") {
-            if (this.marker) {
-              this.marker._component.animateMarkerToCoordinate(
-                newCoordinate,
-                500
-              );
-            }
-          } else {
-            coordinate.timing(newCoordinate).start();
-          }
-
-          this.setState({
-            latitude,
-            longitude,
-            routeCoordinates: routeCoordinates.concat([newCoordinate]),
-            distanceTravelled:
-              distanceTravelled + this.calcDistance(newCoordinate),
-            prevLatLng: newCoordinate
+          this.pubnub.publish({
+            message: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            },
+            channel: "reported_location"
           });
        },
        (error) => alert(error.message),
-       { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000, distanceFilter: 10 }
+       { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000, distanceFilter: 5} //, distanceFilter: 5
     );
+
+    // Subscribe to get smoothed location data from PN Function.
+    this.pubnub.subscribe({
+        channels: ['reported_location']     
+    });
+
+    // Update when a new location is received.
+    this.pubnub.getMessage('reported_location', (msg) => {
+      const { routeCoordinates, distanceTravelled } = this.state;
+      const latitude = msg.message.latitude;
+      const longitude = msg.message.longitude;
+
+      const newCoordinate = {
+        latitude,
+        longitude
+      };
+
+      if (Platform.OS === "android") {
+        if (this.marker) {
+          this.marker._component.animateMarkerToCoordinate(
+            newCoordinate,
+            500
+          );
+        }
+      } else {
+        coordinate.timing(newCoordinate).start();
+      }
+
+      // Update current position on map and calculate distance traveled.
+      this.setState({
+        latitude,
+        longitude,
+        routeCoordinates: routeCoordinates.concat([newCoordinate]),
+        distanceTravelled:
+          distanceTravelled + this.calcDistance(newCoordinate),
+        prevLatLng: newCoordinate
+      });
+    });
   }
 
  componentWillUnmount = () => {
     Geolocation.clearWatch(this.watchID);
  }
+
+ getMapRegion = () => ({
+    latitude: this.state.latitude,
+    longitude: this.state.longitude,
+    latitudeDelta: LATITUDE_DELTA,
+    longitudeDelta: LONGITUDE_DELTA
+  });
 
   calcDistance = newLatLng => {
     const { prevLatLng } = this.state;
@@ -130,8 +181,9 @@ export default class App extends React.Component {
           showUserLocation
           followUserLocation
           loadingEnabled
+          region={this.getMapRegion()}
         >
-          <Polyline coordinates={this.state.routeCoordinates} strokeWidth={5} />
+          <Polyline coordinates={this.state.routeCoordinates} strokeWidth={4} />
           <Marker.Animated
             ref={marker => {
               this.marker = marker;
@@ -139,8 +191,8 @@ export default class App extends React.Component {
             coordinate={this.state.coordinate}
           />
         </MapView>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={[styles.bubble, styles.button]}>
+        <View style={styles.distanceContainer}>
+          <TouchableOpacity style={styles.bubble}>
             <Text style={styles.bottomBarContent}>
               {parseFloat(this.state.distanceTravelled).toFixed(2)} km
             </Text>
@@ -162,22 +214,19 @@ const styles = StyleSheet.create({
   },
   bubble: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.7)",
+    backgroundColor: "rgba(255,255,255,0.9)",
     paddingHorizontal: 18,
     paddingVertical: 12,
-    borderRadius: 20
+    borderRadius: 20,
+    width: 50,
+    alignItems: "center",
+    marginHorizontal: 10
   },
   latlng: {
     width: 200,
     alignItems: "stretch"
   },
-  button: {
-    width: 80,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    marginHorizontal: 10
-  },
-  buttonContainer: {
+  distanceContainer: {
     flexDirection: "row",
     marginVertical: 20,
     backgroundColor: "transparent"
