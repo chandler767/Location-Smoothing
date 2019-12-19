@@ -128,9 +128,6 @@ export default class App extends React.Component {
 
     // Update when a new location is received.
     this.pubnub.getMessage('reported_location_smoothed', (msg) => {
-      if (msg.message == "reset") {
-        return // Don't do anything with reset messages.
-      }
       const { routeCoordinates, distanceTravelled } = this.state;
       const latitude = msg.message.latitude;
       const longitude = msg.message.longitude;
