@@ -14,21 +14,14 @@ type kalmanData struct {
 	timeEpoch    uint
 }
 
-func (gps *kalmanData) StartData(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch uint) {
+func (gps *kalmanData) startData(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch uint) {
 	gps.timeEpoch = timeEpoch
 	gps.latitude = latitudeMeasured
 	gps.longitude = longitudeMeasured
 	gps.accuracy = accuracyMeasured * accuracyMeasured
 }
 
-func New(averageSpeed float64) *kalmanData {
-	newGps := kalmanData{}
-	newGps.averageSpeed = averageSpeed
-	newGps.accuracy = -1
-	return &newGps
-}
-
-func (kalmanData *kalmanData) ProcessPoint(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch uint) error {
+func (kalmanData *kalmanData) processPoint(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch uint) error {
 	if accuracyMeasured < minAccuracy {
 		accuracyMeasured = minAccuracy
 	}
@@ -48,36 +41,44 @@ func (kalmanData *kalmanData) ProcessPoint(latitudeMeasured, longitudeMeasured, 
 	kalmanData.latitude += kalmanGain * (latitudeMeasured - kalmanData.latitude)
 	kalmanData.longitude += kalmanGain * (longitudeMeasured - kalmanData.longitude)
 	kalmanData.accuracy = (1 - kalmanGain) * kalmanData.accuracy
+	return nil
 }
 
-func (gps kalmanData) GetLat() float64 {
+func (gps kalmanData) getLat() float64 {
 	return gps.latitude
 }
 
-func (gps kalmanData) GetLong() float64 {
+func (gps kalmanData) getLong() float64 {
 	return gps.longitude
 }
 
-func (kalmanData *kalmanData) ProcessData(latitudeAry, longitudeAry, accuracyArray []float64,
-	timeEpochs []uint) (latitudeAryFiltered, longitudeAryFiltered []float64, error) {
+func New(averageSpeed float64) *kalmanData {
+	newGps := kalmanData{}
+	newGps.averageSpeed = averageSpeed
+	newGps.accuracy = -1
+	return &newGps
+}
 
-	kalmanData.StartData(latitudeAry[0], longitudeAry[0], accuracyArray[0], timeEpochs[0])
+func (kalmanData *kalmanData) ProcessData(latitudeAry, longitudeAry, accuracyArray []float64,
+	timeEpochs []uint) (latitudeAryFiltered, longitudeAryFiltered []float64, err error) {
+
+	kalmanData.startData(latitudeAry[0], longitudeAry[0], accuracyArray[0], timeEpochs[0])
 
 	inputPointsLength := len(latitudeAry)
 	if inputPointsLength != len(longitudeAry) || inputPointsLength != len(accuracyArray) || inputPointsLength != len(timeEpochs) {
-		return errors.New("array length should be equal")
+		return nil, nil, errors.New("array length should be equal")
 	}
 
 	latitudeAryFiltered = make([]float64, 0, inputPointsLength)
 	longitudeAryFiltered = make([]float64, 0, inputPointsLength)
 
 	for i := 0; i < inputPointsLength; i++ {
-		err = kalmanData.ProcessPoint(latitudeAry[i], longitudeAry[i], accuracyArray[1], timeEpochs[i])
+		err = kalmanData.processPoint(latitudeAry[i], longitudeAry[i], accuracyArray[1], timeEpochs[i])
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
-		latitudeAryFiltered = append(latitudeAryFiltered, kalmanData.GetLat())
-		longitudeAryFiltered = append(longitudeAryFiltered, kalmanData.GetLong())
+		latitudeAryFiltered = append(latitudeAryFiltered, kalmanData.getLat())
+		longitudeAryFiltered = append(longitudeAryFiltered, kalmanData.getLong())
 	}
 	return
 }
