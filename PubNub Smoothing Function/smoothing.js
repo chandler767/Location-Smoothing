@@ -97,13 +97,13 @@ export default (request) => {
                             } 
                         }
                         // Drop point
-                        // Update kvstore with current and previous coords for next smooth.
-                        kvstore.set('data', {
+                        // Update kvstore with current and previous coords for next smooth. // Disabled on drop
+                       /*kvstore.set('data', {
                             x1: value.x2,
                             y1: value.y2,
                             x2: request.message.latitude,
                             y2: request.message.longitude
-                        });
+                        });*/
                         console.log("Point was dropped.");
                         return request.ok();
                     }
