@@ -1,4 +1,4 @@
-package kalman
+package smoothing
 
 import (
 	"errors"
@@ -11,17 +11,17 @@ type kalmanData struct {
 	longitude    float64
 	averageSpeed float64 // M/S
 	accuracy     float64
-	timeEpoch    uint
+	timeEpoch    float64
 }
 
-func (gps *kalmanData) startData(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch uint) {
+func (gps *kalmanData) startData(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch float64) { // Initial state
 	gps.timeEpoch = timeEpoch
 	gps.latitude = latitudeMeasured
 	gps.longitude = longitudeMeasured
 	gps.accuracy = accuracyMeasured * accuracyMeasured
 }
 
-func (kalmanData *kalmanData) processPoint(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch uint) error {
+func (kalmanData *kalmanData) processPoint(latitudeMeasured, longitudeMeasured, accuracyMeasured float64, timeEpoch float64) error {
 	if accuracyMeasured < minAccuracy {
 		accuracyMeasured = minAccuracy
 	}
@@ -60,7 +60,7 @@ func New(averageSpeed float64) *kalmanData {
 }
 
 func (kalmanData *kalmanData) ProcessData(latitudeAry, longitudeAry, accuracyArray []float64,
-	timeEpochs []uint) (latitudeAryFiltered, longitudeAryFiltered []float64, err error) {
+	timeEpochs []float64) (latitudeAryFiltered, longitudeAryFiltered []float64, err error) {
 
 	kalmanData.startData(latitudeAry[0], longitudeAry[0], accuracyArray[0], timeEpochs[0])
 
